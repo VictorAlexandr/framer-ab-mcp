@@ -6,511 +6,561 @@
 <title>framer-ab-mcp — Framer A/B test analytics for AI agents</title>
 <meta name="description" content="The first MCP server for Framer A/B test analytics. Ask your AI how your test is doing — visitors, conversions and statistical significance per variant. No scraping, no private APIs." />
 <meta property="og:title" content="framer-ab-mcp" />
-<meta property="og:description" content="Your Framer A/B tests, one question away. The first MCP server for Framer analytics." />
+<meta property="og:description" content="Framer has no analytics API. This does. Ask your AI agent how your A/B test is doing." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --bg: #050508; --surface: rgba(255,255,255,.028); --surface-solid: #0d0d15;
-    --border: rgba(255,255,255,.08); --border-hot: rgba(120,140,255,.35);
-    --text: #f2f3fb; --muted: #878ca6; --dim: #565b74;
-    --blue: #5f8bff; --violet: #a97fff; --green: #43e58a; --red: #ff6470; --amber: #ffc555;
-    --mono: "JetBrains Mono", monospace; --display: "Space Grotesk", Inter, sans-serif;
+    --ink: #000; --paper: #fff; --amber: #ff9d00; --cyan: #2ee6d6; --red: #ff4444;
+    --dim: #9a9aa4; --line: rgba(255,255,255,.16); --line-soft: rgba(255,255,255,.07);
+    --mono: "IBM Plex Mono", monospace; --serif: "Instrument Serif", Georgia, serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; line-height: 1.65; overflow-x: hidden; }
-  ::selection { background: rgba(95,139,255,.35); }
+  body { background: var(--ink); color: var(--paper); font-family: Inter, system-ui, sans-serif; font-size: 15px; line-height: 1.6; overflow-x: hidden; }
+  ::selection { background: var(--amber); color: #000; }
   a { color: inherit; text-decoration: none; }
-  code, pre, kbd { font-family: var(--mono); }
-  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; position: relative; }
+  code, pre, .mono { font-family: var(--mono); }
 
-  /* canvas + ambient */
-  #net { position: fixed; inset: 0; z-index: 0; opacity: .55; }
-  .vignette { position: fixed; inset: 0; z-index: 1; pointer-events: none;
-    background: radial-gradient(ellipse 90% 65% at 50% -5%, rgba(95,139,255,.13), transparent 60%),
-                radial-gradient(ellipse 55% 45% at 82% 8%, rgba(169,127,255,.10), transparent 65%),
-                linear-gradient(#05050800 70%, #050508 100%); }
-  main { position: relative; z-index: 2; }
+  /* ── background: grid + grain + amber wash ─────────────────── */
+  .bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .bg .grid { position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 20%, transparent 78%); }
+  .bg .wash { position: absolute; inset: -20% -10% auto; height: 90vh;
+    background: radial-gradient(ellipse 42% 55% at 22% 12%, rgba(255,157,0,.16), transparent 62%),
+                radial-gradient(ellipse 38% 48% at 82% 4%, rgba(46,230,214,.10), transparent 60%); }
+  .bg .grain { position: absolute; inset: 0; opacity: .5; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E"); }
+  main { position: relative; z-index: 1; }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 0 28px; }
 
-  /* nav */
-  nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; }
-  .logo { font-family: var(--mono); font-weight: 600; font-size: 15px; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; }
-  .logo .dot { width: 9px; height: 9px; border-radius: 3px; background: linear-gradient(135deg, var(--blue), var(--violet)); box-shadow: 0 0 14px rgba(120,140,255,.8); }
-  .logo b { color: var(--violet); font-weight: 600; }
-  .nav-links { display: flex; gap: 8px; align-items: center; }
-  .nav-links a { font-size: 13px; color: var(--muted); padding: 7px 12px; border-radius: 8px; transition: color .2s; }
-  .nav-links a:hover { color: var(--text); }
-  .nav-links a.gh { color: var(--text); border: 1px solid var(--border); background: var(--surface); }
-  .nav-links a.gh:hover { border-color: var(--border-hot); }
+  /* ── nav ───────────────────────────────────────────────────── */
+  nav { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--line-soft); }
+  .logo { font-family: var(--mono); font-size: 14px; font-weight: 600; letter-spacing: -.03em; display: flex; align-items: center; gap: 9px; }
+  .logo .sq { width: 10px; height: 10px; background: var(--amber); box-shadow: 0 0 12px var(--amber); }
+  .logo em { font-style: normal; color: var(--amber); }
+  .nav-r { display: flex; align-items: center; gap: 20px; }
+  .nav-r a.lnk { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .02em; }
+  .nav-r a.lnk:hover { color: var(--paper); }
+  @media (max-width: 720px) { .nav-r a.lnk { display: none; } }
+  .btn { display: inline-flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 13px; font-weight: 500; padding: 9px 16px; border: 1px solid var(--line); transition: background .18s, color .18s, border-color .18s, transform .18s; }
+  .btn svg { width: 16px; height: 16px; fill: currentColor; }
+  .btn:hover { background: var(--paper); color: #000; border-color: var(--paper); }
+  .btn.solid { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 600; }
+  .btn.solid:hover { background: #fff; border-color: #fff; transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--amber); }
 
-  /* hero */
-  .hero { padding: 78px 0 40px; display: grid; grid-template-columns: 1.05fr .95fr; gap: 56px; align-items: center; min-height: 78vh; }
-  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; min-height: unset; padding-top: 48px; } }
-  .pill { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .1em; color: var(--violet); border: 1px solid rgba(169,127,255,.3); background: rgba(169,127,255,.07); border-radius: 999px; padding: 6px 14px; }
-  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--violet); animation: pulse 2s infinite; }
-  @keyframes pulse { 50% { opacity: .3; } }
-  h1 { font-family: var(--display); font-size: clamp(40px, 5.6vw, 66px); font-weight: 700; line-height: 1.03; letter-spacing: -.035em; margin: 22px 0 0; }
-  h1 .grad { background: linear-gradient(94deg, var(--blue) 10%, var(--violet) 60%, #e4b8ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .hero .sub { margin-top: 22px; color: var(--muted); font-size: 16.5px; max-width: 470px; }
-  .hero .sub b { color: var(--text); font-weight: 600; }
-  .cta-row { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; align-items: center; }
-  .btn { font-weight: 600; font-size: 14px; border-radius: 11px; padding: 12px 22px; transition: transform .15s, box-shadow .2s, border-color .2s; display: inline-flex; align-items: center; gap: 8px; }
-  .btn.primary { background: linear-gradient(94deg, var(--blue), var(--violet)); color: #fff; box-shadow: 0 6px 28px rgba(110,120,255,.35); }
-  .btn.primary:hover { transform: translateY(-2px); box-shadow: 0 10px 34px rgba(110,120,255,.5); }
-  .btn.ghost { border: 1px solid var(--border); color: var(--text); background: var(--surface); font-family: var(--mono); font-size: 13px; cursor: pointer; }
-  .btn.ghost:hover { border-color: var(--border-hot); }
-  .btn.ghost .d { color: var(--green); }
-  .meta-row { display: flex; gap: 18px; margin-top: 26px; color: var(--dim); font-size: 12px; font-family: var(--mono); flex-wrap: wrap; }
-  .meta-row span::before { content: "◆ "; color: var(--blue); font-size: 9px; vertical-align: 2px; }
+  /* ── section frame ─────────────────────────────────────────── */
+  section { padding: 62px 0; border-bottom: 1px solid var(--line-soft); }
+  .shead { display: flex; align-items: baseline; gap: 16px; margin-bottom: 26px; }
+  .snum { font-family: var(--mono); font-size: 11.5px; color: var(--amber); letter-spacing: .1em; white-space: nowrap; }
+  .shead h2 { font-family: var(--serif); font-size: clamp(27px, 3.6vw, 40px); font-weight: 400; line-height: 1.06; letter-spacing: -.01em; }
+  .shead h2 i { color: var(--amber); }
+  .shead p { margin-left: auto; max-width: 330px; color: var(--dim); font-size: 13.5px; text-align: right; }
+  @media (max-width: 820px) { .shead { flex-wrap: wrap; } .shead p { margin-left: 0; text-align: left; max-width: none; } }
 
-  /* terminal */
-  .term { background: rgba(10,10,17,.92); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(120,140,255,.06), 0 0 60px rgba(95,139,255,.07); overflow: hidden; backdrop-filter: blur(6px); transform: perspective(1200px) rotateY(-4deg) rotateX(2deg); transition: transform .4s; }
-  .term:hover { transform: perspective(1200px) rotateY(0) rotateX(0); }
-  .term-bar { display: flex; align-items: center; gap: 7px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-  .term-bar i { width: 11px; height: 11px; border-radius: 50%; background: #33344a; }
-  .term-bar i:nth-child(1) { background: #ff5f57; } .term-bar i:nth-child(2) { background: #febc2e; } .term-bar i:nth-child(3) { background: #28c840; }
-  .term-bar span { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--dim); }
-  .term-body { padding: 20px 20px 24px; font-family: var(--mono); font-size: 12.6px; line-height: 1.85; min-height: 320px; }
-  .t-user { color: var(--text); } .t-user::before { content: "❯ "; color: var(--violet); font-weight: 600; }
-  .t-tool { color: var(--dim); font-size: 11.5px; }
-  .t-tool b { color: var(--blue); font-weight: 500; }
-  .t-out { color: var(--muted); white-space: pre-wrap; }
-  .t-out .g { color: var(--green); font-weight: 600; } .t-out .a { color: var(--amber); } .t-out .v { color: var(--violet); }
-  .caret { display: inline-block; width: 7px; height: 15px; background: var(--violet); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
+  /* ── hero ──────────────────────────────────────────────────── */
+  .hero { display: grid; grid-template-columns: 1.02fr .98fr; gap: 46px; align-items: center; padding: 64px 0 58px; border-bottom: 1px solid var(--line-soft); }
+  @media (max-width: 940px) { .hero { grid-template-columns: 1fr; gap: 34px; padding: 44px 0; } }
+  .tag { display: inline-flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 11px; letter-spacing: .14em; color: var(--amber); border: 1px solid rgba(255,157,0,.4); padding: 5px 12px; }
+  .tag b { width: 5px; height: 5px; background: var(--amber); animation: blip 1.6s infinite; }
+  @keyframes blip { 50% { opacity: .15; } }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(46px, 6.6vw, 82px); line-height: .94; letter-spacing: -.02em; margin: 20px 0 0; }
+  h1 i { color: var(--amber); }
+  h1 s { text-decoration: none; display: block; font-family: var(--mono); font-size: clamp(13px, 1.5vw, 16px); letter-spacing: .02em; color: var(--dim); margin-top: 18px; line-height: 1.6; max-width: 430px; }
+  h1 s b { color: var(--paper); font-weight: 500; }
+  .hero-cta { display: flex; gap: 10px; margin-top: 30px; flex-wrap: wrap; }
+  .facts { display: flex; gap: 26px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .fact .k { font-family: var(--mono); font-size: 19px; color: var(--paper); }
+  .fact .v { font-family: var(--mono); font-size: 10.5px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; }
 
-  /* sections */
-  section { padding: 96px 0; }
-  .kicker { font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--blue); display: flex; align-items: center; gap: 10px; }
-  .kicker::before { content: ""; width: 26px; height: 1px; background: linear-gradient(90deg, var(--blue), transparent); }
-  h2 { font-family: var(--display); font-size: clamp(28px, 3.8vw, 42px); font-weight: 700; letter-spacing: -.03em; line-height: 1.12; margin: 14px 0 16px; }
-  .lead { color: var(--muted); max-width: 620px; font-size: 16px; }
-  .lead b, .lead strong { color: var(--text); }
+  /* ── live split sim ────────────────────────────────────────── */
+  .sim { border: 1px solid var(--line); background: rgba(255,255,255,.018); }
+  .sim-top { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); font-family: var(--mono); font-size: 10.5px; color: var(--dim); letter-spacing: .08em; }
+  .sim-top .live { color: var(--cyan); display: flex; align-items: center; gap: 6px; }
+  .sim-top .live b { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); animation: blip 1.4s infinite; }
+  #sim { display: block; width: 100%; height: 232px; }
+  .sim-stats { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line-soft); }
+  .sim-stats .col { padding: 12px 14px; }
+  .sim-stats .col + .col { border-left: 1px solid var(--line-soft); }
+  .sim-stats .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--dim); }
+  .sim-stats .col.b .lbl { color: var(--amber); }
+  .sim-stats .rate { font-family: var(--mono); font-size: 24px; margin-top: 4px; }
+  .sim-stats .col.b .rate { color: var(--amber); }
+  .sim-stats .sub { font-family: var(--mono); font-size: 10.5px; color: var(--dim); }
+  .sim-foot { padding: 11px 14px; border-top: 1px solid var(--line-soft); display: flex; align-items: center; gap: 12px; }
+  .sim-foot .track { flex: 1; height: 4px; background: rgba(255,255,255,.09); position: relative; }
+  .sim-foot .track i { position: absolute; inset: 0 auto 0 0; background: var(--amber); transition: width .3s; }
+  .sim-foot .track em { position: absolute; top: -3px; bottom: -3px; left: 95%; width: 1px; background: var(--cyan); }
+  .sim-foot .verd { font-family: var(--mono); font-size: 11px; color: var(--dim); white-space: nowrap; }
+  .sim-foot .verd.ok { color: var(--cyan); }
 
-  .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s cubic-bezier(.2,.6,.2,1), transform .7s cubic-bezier(.2,.6,.2,1); }
-  .reveal.in { opacity: 1; transform: none; }
-  .reveal.d1 { transition-delay: .08s; } .reveal.d2 { transition-delay: .16s; } .reveal.d3 { transition-delay: .24s; }
+  /* ── gap band ──────────────────────────────────────────────── */
+  .gaps { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line-soft); }
+  @media (max-width: 820px) { .gaps { grid-template-columns: 1fr; } }
+  .gaps > div { padding: 22px; border-right: 1px solid var(--line-soft); position: relative; }
+  .gaps > div:last-child { border-right: 0; }
+  .gaps .no { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; color: var(--red); }
+  .gaps h3 { font-family: var(--serif); font-size: 21px; font-weight: 400; margin: 7px 0 6px; }
+  .gaps p { color: var(--dim); font-size: 13px; }
+  .quote { margin-top: 18px; border-left: 2px solid var(--amber); padding: 14px 0 14px 20px; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+  .quote q { font-family: var(--serif); font-style: italic; font-size: clamp(18px, 2.4vw, 25px); line-height: 1.35; quotes: none; max-width: 720px; }
+  .quote .src { font-family: var(--mono); font-size: 11px; color: var(--dim); white-space: nowrap; }
+  .quote .src b { color: var(--amber); font-weight: 500; }
 
-  /* gap */
-  .gap-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 40px; }
-  @media (max-width: 800px) { .gap-grid { grid-template-columns: 1fr; } }
-  .card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 26px; overflow: hidden; }
-  .card .glow { position: absolute; inset: 0; opacity: 0; transition: opacity .3s; pointer-events: none; background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(120,140,255,.12), transparent 70%); }
-  .card:hover .glow { opacity: 1; }
-  .gap-grid .card h3 { font-family: var(--display); font-size: 17px; margin: 10px 0 6px; }
-  .gap-grid .card p { color: var(--muted); font-size: 13.5px; }
-  .no { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .1em; color: var(--red); }
-  .quote { margin-top: 40px; display: grid; grid-template-columns: 46px 1fr; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px 26px; max-width: 720px; }
-  .quote .avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, #2b2f4a, #1a1c2c); display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 700; color: var(--muted); }
-  .quote p { font-size: 15.5px; }
-  .quote .who { margin-top: 8px; color: var(--dim); font-size: 12.5px; font-family: var(--mono); }
-  .quote .who b { color: var(--amber); font-weight: 500; }
+  /* ── how ───────────────────────────────────────────────────── */
+  .how { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); }
+  @media (max-width: 900px) { .how { grid-template-columns: repeat(2, 1fr); } }
+  .how > div { background: #000; padding: 20px; }
+  .how .st { font-family: var(--mono); font-size: 10.5px; color: var(--amber); letter-spacing: .1em; }
+  .how h3 { font-size: 14.5px; font-weight: 600; margin: 10px 0 6px; }
+  .how p { color: var(--dim); font-size: 12.5px; }
+  .urlbox { margin-top: 24px; border: 1px solid var(--line); padding: 20px 22px; overflow-x: auto; background: rgba(255,157,0,.03); }
+  .urlbox .cap { font-family: var(--mono); font-size: 10.5px; color: var(--dim); letter-spacing: .1em; }
+  .urlbox .u { font-family: var(--mono); font-size: clamp(14px, 2.3vw, 21px); margin-top: 9px; white-space: nowrap; }
+  .urlbox .u mark { background: none; color: var(--amber); text-shadow: 0 0 22px rgba(255,157,0,.85); position: relative; }
+  .urlbox .u mark::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 2px; background: var(--amber); }
+  .urlbox .note { font-family: var(--mono); font-size: 11.5px; color: var(--dim); margin-top: 18px; }
+  .urlbox .note b { color: var(--cyan); font-weight: 500; }
 
-  /* insight pipeline */
-  .pipe { margin-top: 48px; display: grid; gap: 0; max-width: 760px; }
-  .pipe-node { display: grid; grid-template-columns: 52px 1fr; gap: 18px; align-items: start; }
-  .pipe-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--surface-solid); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 20px; position: relative; z-index: 1; }
-  .pipe-node.hot .pipe-icon { border-color: var(--border-hot); box-shadow: 0 0 24px rgba(120,140,255,.25); }
-  .pipe-line { grid-column: 1; justify-self: center; width: 2px; height: 44px; background: linear-gradient(180deg, rgba(120,140,255,.5), rgba(120,140,255,.08)); position: relative; overflow: hidden; }
-  .pipe-line::after { content: ""; position: absolute; left: 0; right: 0; height: 12px; background: linear-gradient(180deg, transparent, var(--blue), transparent); animation: drip 2.2s linear infinite; }
-  @keyframes drip { from { top: -14px; } to { top: 100%; } }
-  .pipe-node h3 { font-family: var(--display); font-size: 16.5px; padding-top: 4px; }
-  .pipe-node p { color: var(--muted); font-size: 13.5px; max-width: 560px; }
-  .pipe-node code.url { display: inline-block; margin-top: 8px; background: #0b0b13; border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; font-size: 12.5px; color: var(--muted); }
-  .pipe-node code.url .hl { color: var(--violet); font-weight: 600; text-shadow: 0 0 18px rgba(169,127,255,.7); }
+  /* ── tools + terminal ──────────────────────────────────────── */
+  .tw { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 940px) { .tw { grid-template-columns: 1fr; } }
+  .tools { display: grid; gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); }
+  .tools > div { background: #000; padding: 17px 19px; transition: background .2s; }
+  .tools > div:hover { background: rgba(255,157,0,.05); }
+  .tools code.n { font-family: var(--mono); font-size: 13px; color: var(--amber); font-weight: 500; }
+  .tools p { color: var(--dim); font-size: 12.5px; margin-top: 5px; }
+  .term { border: 1px solid var(--line); background: rgba(255,255,255,.018); }
+  .term-bar { display: flex; align-items: center; gap: 8px; padding: 9px 13px; border-bottom: 1px solid var(--line-soft); font-family: var(--mono); font-size: 10.5px; color: var(--dim); }
+  .term-bar i { width: 8px; height: 8px; border-radius: 50%; background: #2a2a30; }
+  .term-bar i.on { background: var(--amber); }
+  .term-body { padding: 16px 18px 20px; font-family: var(--mono); font-size: 12.2px; line-height: 1.85; min-height: 288px; }
+  .t-user::before { content: "❯ "; color: var(--amber); }
+  .t-tool { color: #6e6e78; font-size: 11.2px; }
+  .t-tool b { color: var(--cyan); font-weight: 400; }
+  .t-out { color: #b8b8c2; white-space: pre-wrap; }
+  .t-out .g { color: var(--cyan); } .t-out .a { color: var(--amber); }
+  .caret { display: inline-block; width: 7px; height: 14px; background: var(--amber); vertical-align: -2px; animation: bl 1s steps(1) infinite; }
+  @keyframes bl { 50% { opacity: 0; } }
 
-  /* tools */
-  .tools { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 40px; }
-  @media (max-width: 800px) { .tools { grid-template-columns: 1fr; } }
-  .tool-card { min-height: 168px; display: flex; flex-direction: column; }
-  .tool-card code.name { font-size: 14px; font-weight: 600; color: var(--blue); }
-  .tool-card p { color: var(--muted); font-size: 13.5px; margin-top: 9px; flex: 1; }
-  .tool-card .ask { margin-top: 16px; font-size: 12.5px; color: var(--text); background: rgba(0,0,0,.3); border: 1px solid var(--border); border-radius: 9px; padding: 9px 13px; font-style: italic; }
-  .tool-card .ask::before { content: "“"; color: var(--violet); } .tool-card .ask::after { content: "”"; color: var(--violet); }
-
-  /* calculator */
-  .calc { margin-top: 44px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+  /* ── calculator ────────────────────────────────────────────── */
+  .calc { display: grid; grid-template-columns: 1.15fr .85fr; gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); }
   @media (max-width: 860px) { .calc { grid-template-columns: 1fr; } }
-  .calc h3 { font-family: var(--display); font-size: 18px; margin-bottom: 4px; }
-  .calc .hint { color: var(--dim); font-size: 12.5px; margin-bottom: 22px; }
-  .field { margin-bottom: 16px; }
-  .field label { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-  .field label output { color: var(--text); font-weight: 600; }
-  input[type="range"] { width: 100%; appearance: none; height: 4px; border-radius: 4px; background: #23243a; outline: none; }
-  input[type="range"]::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), var(--violet)); box-shadow: 0 0 16px rgba(120,140,255,.6); cursor: pointer; }
-  .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 4px; }
-  .vs .side { font-family: var(--mono); font-size: 11px; color: var(--dim); letter-spacing: .08em; }
-  .vs .side.b { color: var(--violet); }
-  .verdict { border-radius: 16px; padding: 26px; display: flex; flex-direction: column; justify-content: center; gap: 14px; border: 1px solid var(--border); background: rgba(0,0,0,.25); transition: border-color .4s, box-shadow .4s; }
-  .verdict.win { border-color: rgba(67,229,138,.45); box-shadow: 0 0 40px rgba(67,229,138,.12) inset; }
-  .verdict .conf { font-family: var(--display); font-size: 54px; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
-  .verdict .conf small { font-size: 22px; color: var(--muted); font-weight: 500; }
-  .verdict .bar { height: 7px; border-radius: 6px; background: #1c1d30; overflow: hidden; position: relative; }
-  .verdict .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: linear-gradient(90deg, var(--blue), var(--violet)); transition: width .35s cubic-bezier(.2,.6,.2,1); }
-  .verdict .bar em { position: absolute; top: -4px; bottom: -4px; left: 95%; width: 2px; background: var(--green); opacity: .8; }
-  .verdict .msg { font-size: 13.5px; color: var(--muted); }
-  .verdict .msg b { color: var(--text); }
-  .verdict .chip { align-self: flex-start; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .08em; border-radius: 999px; padding: 5px 13px; }
-  .chip.running { color: var(--amber); background: rgba(255,197,85,.1); border: 1px solid rgba(255,197,85,.3); }
-  .chip.sig { color: var(--green); background: rgba(67,229,138,.1); border: 1px solid rgba(67,229,138,.35); }
-  .calc-note { grid-column: 1 / -1; font-size: 12px; color: var(--dim); border-top: 1px solid var(--border); padding-top: 16px; }
-  .calc-note code { color: var(--muted); }
+  .calc > div { background: #000; padding: 22px; }
+  .rows { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .rows .hd { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; color: var(--dim); padding-bottom: 9px; border-bottom: 1px solid var(--line-soft); margin-bottom: 14px; }
+  .rows .hd.b { color: var(--amber); border-color: rgba(255,157,0,.4); }
+  .f { margin-bottom: 13px; }
+  .f label { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10.5px; color: var(--dim); letter-spacing: .06em; margin-bottom: 6px; }
+  .f label output { color: var(--paper); }
+  input[type=range] { width: 100%; appearance: none; height: 2px; background: rgba(255,255,255,.16); outline: none; }
+  input[type=range]::-webkit-slider-thumb { appearance: none; width: 13px; height: 13px; background: var(--paper); cursor: pointer; border-radius: 0; }
+  input[type=range]:hover::-webkit-slider-thumb { background: var(--amber); }
+  .verd-box .cn { font-family: var(--mono); font-size: 52px; line-height: 1; letter-spacing: -.04em; }
+  .verd-box .cn small { font-size: 15px; color: var(--dim); letter-spacing: 0; }
+  .verd-box .bar { height: 4px; background: rgba(255,255,255,.1); margin: 16px 0; position: relative; }
+  .verd-box .bar i { position: absolute; inset: 0 auto 0 0; background: var(--paper); transition: width .3s, background .3s; }
+  .verd-box.ok .bar i { background: var(--cyan); }
+  .verd-box.ok .cn { color: var(--cyan); }
+  .verd-box .bar em { position: absolute; top: -4px; bottom: -4px; left: 95%; width: 1px; background: var(--amber); }
+  .verd-box .st { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; color: var(--dim); }
+  .verd-box.ok .st { color: var(--cyan); }
+  .verd-box .msg { font-size: 13px; color: var(--dim); margin-top: 12px; }
+  .verd-box .msg b { color: var(--paper); }
 
-  /* quickstart */
-  .steps { margin-top: 40px; display: grid; gap: 12px; counter-reset: s; max-width: 780px; }
-  .step { display: grid; grid-template-columns: 40px 1fr; gap: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
-  .step .n::before { counter-increment: s; content: counter(s, decimal-leading-zero); font-family: var(--mono); font-size: 12px; color: var(--violet); }
-  .step h3 { font-family: var(--display); font-size: 15.5px; margin-bottom: 5px; }
-  .step p { color: var(--muted); font-size: 13.5px; }
-  .codebox { position: relative; margin-top: 14px; background: #08080f; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  .codebox pre { padding: 16px 18px; font-size: 12.3px; line-height: 1.75; overflow-x: auto; color: var(--muted); }
-  .codebox .k { color: var(--blue); } .codebox .s { color: var(--green); }
-  .codebox button { position: absolute; top: 9px; right: 9px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
-  .codebox button:hover { color: var(--text); }
+  /* ── install ───────────────────────────────────────────────── */
+  .inst { display: grid; grid-template-columns: .8fr 1.2fr; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .inst { grid-template-columns: 1fr; } }
+  .steps { display: grid; gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); }
+  .steps > div { background: #000; padding: 16px 18px; display: grid; grid-template-columns: 26px 1fr; gap: 12px; }
+  .steps .i { font-family: var(--mono); font-size: 11px; color: var(--amber); }
+  .steps h3 { font-size: 13.5px; font-weight: 600; }
+  .steps p { color: var(--dim); font-size: 12.3px; margin-top: 3px; }
+  .cb { position: relative; border: 1px solid var(--line); }
+  .cb pre { padding: 18px; font-size: 12.2px; line-height: 1.7; overflow-x: auto; color: #b8b8c2; }
+  .cb .k { color: var(--cyan); } .cb .s { color: var(--amber); }
+  .cb button { position: absolute; top: 10px; right: 10px; font-family: var(--mono); font-size: 10.5px; color: var(--dim); background: #000; border: 1px solid var(--line); padding: 4px 9px; cursor: pointer; }
+  .cb button:hover { color: var(--paper); border-color: var(--paper); }
 
-  /* faq */
-  .faq { margin-top: 36px; max-width: 780px; display: grid; gap: 10px; }
-  details { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 18px 22px; transition: border-color .25s; }
-  details[open] { border-color: var(--border-hot); }
-  summary { cursor: pointer; font-weight: 600; font-size: 14.5px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
-  summary::after { content: "+"; font-family: var(--mono); color: var(--violet); font-size: 17px; transition: transform .25s; }
-  details[open] summary::after { transform: rotate(45deg); }
-  details p { color: var(--muted); font-size: 13.5px; margin-top: 12px; }
+  /* ── faq ───────────────────────────────────────────────────── */
+  .faq { display: grid; gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); }
+  details { background: #000; padding: 15px 19px; }
+  summary { cursor: pointer; font-size: 14px; font-weight: 500; list-style: none; display: flex; justify-content: space-between; gap: 14px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; font-family: var(--mono); color: var(--amber); }
+  details[open] summary::after { content: "−"; }
+  details p { color: var(--dim); font-size: 13px; margin-top: 10px; max-width: 760px; }
 
-  /* cta + footer */
-  .final { text-align: center; padding: 110px 0 120px; position: relative; }
-  .final::before { content: ""; position: absolute; inset: auto 0 0; height: 100%; background: radial-gradient(ellipse 55% 60% at 50% 100%, rgba(95,139,255,.12), transparent 70%); pointer-events: none; }
-  .final h2 { font-size: clamp(30px, 4.6vw, 50px); }
-  .final .lead { margin: 0 auto; }
-  footer.site { border-top: 1px solid var(--border); padding: 28px 0; color: var(--dim); font-size: 13px; }
-  footer.site .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-  footer.site a { color: var(--muted); } footer.site a:hover { color: var(--text); }
+  /* ── final ─────────────────────────────────────────────────── */
+  .final { padding: 74px 0; text-align: center; }
+  .final h2 { font-family: var(--serif); font-size: clamp(34px, 5.4vw, 62px); font-weight: 400; line-height: 1; letter-spacing: -.02em; }
+  .final h2 i { color: var(--amber); }
+  .final p { color: var(--dim); font-family: var(--mono); font-size: 12.5px; margin: 16px 0 26px; letter-spacing: .04em; }
+  footer.st { border-top: 1px solid var(--line-soft); padding: 20px 0; font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+  footer.st .wrap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  footer.st a:hover { color: var(--paper); }
 
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation: none !important; transition: none !important; }
-    .reveal { opacity: 1; transform: none; }
-  }
+  .rv { opacity: 0; transform: translateY(18px); transition: opacity .55s ease, transform .55s ease; }
+  .rv.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .rv { opacity: 1; transform: none; } }
 </style>
 </head>
 <body>
-<canvas id="net"></canvas>
-<div class="vignette"></div>
+<div class="bg"><div class="wash"></div><div class="grid"></div><div class="grain"></div></div>
 
 <main>
+<div class="wrap">
+  <nav>
+    <div class="logo"><span class="sq"></span>framer-ab-<em>mcp</em></div>
+    <div class="nav-r">
+      <a class="lnk" href="#gap">gap</a><a class="lnk" href="#how">how</a><a class="lnk" href="#tools">tools</a><a class="lnk" href="#math">math</a>
+      <a class="btn" href="https://github.com/VictorAlexandr/framer-ab-mcp"><svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>GitHub</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div>
+      <span class="tag"><b></b>FIRST MCP FOR FRAMER ANALYTICS</span>
+      <h1>Framer has no<br />analytics API.<br /><i>This does.</i>
+        <s>Your AI agent reads your <b>real A/B test numbers</b> — visitors, conversions, uplift, statistical significance. Straight from GA4. No scraping. Nothing to break.</s>
+      </h1>
+      <div class="hero-cta">
+        <a class="btn solid" href="https://github.com/VictorAlexandr/framer-ab-mcp"><svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>Star on GitHub</a>
+        <button class="btn" id="cpBtn" onclick="navigator.clipboard.writeText('npx -y framer-ab-mcp');this.textContent='copied ✓';setTimeout(()=>this.textContent='$ npx -y framer-ab-mcp',1500)">$ npx -y framer-ab-mcp</button>
+      </div>
+      <div class="facts">
+        <div class="fact"><div class="k">4</div><div class="v">tools</div></div>
+        <div class="fact"><div class="k">0</div><div class="v">config</div></div>
+        <div class="fact"><div class="k">MIT</div><div class="v">license</div></div>
+        <div class="fact"><div class="k">GA4</div><div class="v">official api</div></div>
+      </div>
+    </div>
+
+    <div class="sim">
+      <div class="sim-top"><span>TRAFFIC SPLIT · SIMULATION</span><span class="live"><b></b>LIVE</span></div>
+      <canvas id="sim"></canvas>
+      <div class="sim-stats">
+        <div class="col"><div class="lbl">CONTROL</div><div class="rate" id="rA">—</div><div class="sub" id="sA">0 visitors</div></div>
+        <div class="col b"><div class="lbl">VARIANT B</div><div class="rate" id="rB">—</div><div class="sub" id="sB">0 visitors</div></div>
+      </div>
+      <div class="sim-foot"><div class="track"><i id="cBar" style="width:0"></i><em></em></div><span class="verd" id="cVerd">0% confidence</span></div>
+    </div>
+  </header>
+</div>
+
+<section id="gap">
   <div class="wrap">
-    <nav>
-      <div class="logo"><span class="dot"></span>framer-ab-<b>mcp</b></div>
-      <div class="nav-links">
-        <a href="#gap">The gap</a><a href="#how">How</a><a href="#tools">Tools</a><a href="#try">Try it</a>
-        <a class="gh" href="https://github.com/VictorAlexandr/framer-ab-mcp">GitHub ↗</a>
-      </div>
-    </nav>
+    <div class="shead rv"><span class="snum">// 01</span><h2>A locked room, <i>by design</i></h2><p>Built-in A/B testing, funnels, click tracking — all great, all trapped in the panel.</p></div>
+    <div class="gaps rv">
+      <div><div class="no">✕ NO API</div><h3>No endpoint</h3><p>Framer's Server API covers CMS content only. Analytics has zero programmatic access — not even read-only.</p></div>
+      <div><div class="no">✕ NO EXPORT</div><h3>No CSV, no webhook</h3><p>Results render in a dashboard and exist nowhere else. When a test ends, the history is a screenshot.</p></div>
+      <div><div class="no">✕ NO ECOSYSTEM</div><h3>Every Framer MCP is design-only</h3><p>The existing plugins automate the canvas — copy, components, styles. None can read a single metric.</p></div>
+    </div>
+    <div class="quote rv">
+      <q>Is there any plan to be able to export the analytics to an external source or potentially get it via API?</q>
+      <span class="src">FRAMER COMMUNITY · DEC 2024 · <b>STILL OPEN</b></span>
+    </div>
+  </div>
+</section>
 
-    <header class="hero">
-      <div>
-        <span class="pill">FIRST MCP SERVER FOR FRAMER ANALYTICS</span>
-        <h1>Your Framer A/B tests,<br /><span class="grad">one question away.</span></h1>
-        <p class="sub">Framer has <b>no analytics API</b>. This MCP server gives Claude, Cursor — any AI agent — your real test numbers anyway: visitors, conversions, uplift and <b>statistical significance</b> per variant. No scraping. Nothing to break.</p>
-        <div class="cta-row">
-          <a class="btn primary" href="https://github.com/VictorAlexandr/framer-ab-mcp">Get started →</a>
-          <button class="btn ghost" onclick="navigator.clipboard.writeText('npx -y framer-ab-mcp');this.textContent='copied ✓';setTimeout(()=>this.innerHTML='<span class=d>$</span>&nbsp;npx -y framer-ab-mcp',1600)"><span class="d">$</span>&nbsp;npx -y framer-ab-mcp</button>
-        </div>
-        <div class="meta-row"><span>MIT license</span><span>official GA4 API only</span><span>zero config detection</span></div>
-      </div>
+<section id="how">
+  <div class="wrap">
+    <div class="shead rv"><span class="snum">// 02</span><h2>The data was never locked.<br /><i>It was in GA4 all along.</i></h2><p>Framer stamps the URL when it assigns a variant. GA4 keeps the stamp.</p></div>
+    <div class="urlbox rv">
+      <div class="cap">WHAT A VISITOR IN VARIANT B ACTUALLY LANDS ON</div>
+      <div class="u">sparkmaxx.com/pricing<mark>?framer_variant=dXmgUoIf7</mark></div>
+      <div class="note">GA4 dimension <b>landingPagePlusQueryString</b> keeps that parameter — so every variant is already tracked separately, behind an official Google API.</div>
+    </div>
+    <div class="how rv" style="margin-top:22px">
+      <div><div class="st">STEP 01</div><h3>Framer splits traffic</h3><p>Visitor assigned to a variant, URL gets stamped.</p></div>
+      <div><div class="st">STEP 02</div><h3>GA4 records per variant</h3><p>Visitors and key events, per day, per stamp.</p></div>
+      <div><div class="st">STEP 03</div><h3>This server does the math</h3><p>Auto-detects tests, cleans query noise (utm, fbclid), runs a two-proportion z-test.</p></div>
+      <div><div class="st">STEP 04</div><h3>Your agent answers</h3><p>"B is +23% at 97% confidence — ship it."</p></div>
+    </div>
+  </div>
+</section>
 
-      <div class="term">
-        <div class="term-bar"><i></i><i></i><i></i><span>claude — framer-ab-mcp</span></div>
+<section id="tools">
+  <div class="wrap">
+    <div class="shead rv"><span class="snum">// 03</span><h2>Four tools. <i>Zero setup.</i></h2><p>Tests are detected from live traffic — you never register anything.</p></div>
+    <div class="tw">
+      <div class="tools rv">
+        <div><code class="n">list_ab_tests</code><p>Every page receiving <code>framer_variant</code> traffic, grouped, with visitors and conversions per variant.</p></div>
+        <div><code class="n">get_test_results</code><p>Full table for one page — variants plus untagged baseline — with verdict and visitors still missing.</p></div>
+        <div><code class="n">check_significance</code><p>The z-test on any numbers, even pasted from the Framer panel. Uplift, confidence, sample size.</p></div>
+        <div><code class="n">get_top_pages</code><p>Top landing pages with visitors, views and conversion rate — health check around every test.</p></div>
+      </div>
+      <div class="term rv">
+        <div class="term-bar"><i class="on"></i><i></i><i></i><span style="margin-left:auto">claude · framer-ab-mcp</span></div>
         <div class="term-body" id="termBody"></div>
       </div>
-    </header>
+    </div>
   </div>
+</section>
 
-  <section id="gap">
-    <div class="wrap">
-      <p class="kicker reveal">The gap</p>
-      <h2 class="reveal">Framer analytics is a locked room</h2>
-      <p class="lead reveal d1">Built-in A/B testing, funnels, click tracking — all great, all trapped in the panel. If you want your test data anywhere else, the state of the art is copy-paste.</p>
-      <div class="gap-grid">
-        <div class="card reveal"><span class="glow"></span><span class="no">✕ NO API</span><h3>No analytics endpoint</h3><p>Framer's Server API covers CMS content only. Analytics has zero programmatic access — not even read-only.</p></div>
-        <div class="card reveal d1"><span class="glow"></span><span class="no">✕ NO EXPORT</span><h3>No CSV. No webhook.</h3><p>A/B results render in a dashboard and exist nowhere else. When the test ends, the history is a screenshot.</p></div>
-        <div class="card reveal d2"><span class="glow"></span><span class="no">✕ NO ECOSYSTEM</span><h3>Every Framer MCP is design-only</h3><p>Existing MCP plugins automate the canvas — copy, components, styles. None of them can read a single metric.</p></div>
-      </div>
-      <div class="quote reveal">
-        <div class="avatar">?</div>
-        <div>
-          <p>“I wanted to know if there is any plan to be able to export the analytics to an external source or potentially get it via API.”</p>
-          <p class="who">Framer Community · asked Dec 2024 · <b>still open</b></p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="how">
-    <div class="wrap">
-      <p class="kicker reveal">The insight</p>
-      <h2 class="reveal">The data was never locked.<br />It was in GA4 all along.</h2>
-      <p class="lead reveal d1">When Framer assigns a visitor to a variant, it stamps the URL. If your site sends data to Google Analytics 4 — most production Framer sites do — <strong>every variant is already tracked separately</strong>, behind an official, stable Google API.</p>
-      <div class="pipe">
-        <div class="pipe-node hot reveal">
-          <div class="pipe-icon">🧪</div>
-          <div><h3>Framer runs the test</h3><p>A visitor gets assigned to a variant and lands on:</p>
-            <code class="url">/pricing<span class="hl">?framer_variant=dXmgUoIf7</span></code></div>
-        </div>
-        <div class="pipe-line"></div>
-        <div class="pipe-node reveal">
-          <div class="pipe-icon">📊</div>
-          <div><h3>GA4 records it — split by variant</h3><p>The <code>landingPagePlusQueryString</code> dimension keeps the stamp. Visitors, key events, everything — per variant, per day.</p></div>
-        </div>
-        <div class="pipe-line"></div>
-        <div class="pipe-node hot reveal">
-          <div class="pipe-icon">⚡</div>
-          <div><h3>framer-ab-mcp does the math</h3><p>Auto-detects tests from traffic, aggregates variants across query noise (utm, fbclid…), runs a two-proportion z-test at 95% confidence.</p></div>
-        </div>
-        <div class="pipe-line"></div>
-        <div class="pipe-node reveal">
-          <div class="pipe-icon">💬</div>
-          <div><h3>Your AI answers</h3><p>“Variant B is converting 23% above control at 97% confidence — safe to ship it.”</p></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="tools">
-    <div class="wrap">
-      <p class="kicker reveal">Tools</p>
-      <h2 class="reveal">Four tools. Zero configuration.</h2>
-      <p class="lead reveal d1">Tests are detected from live traffic — you never register anything. Point it at your GA4 property and ask.</p>
-      <div class="tools">
-        <div class="card tool-card reveal"><span class="glow"></span><code class="name">list_ab_tests</code><p>Finds every page receiving <code>framer_variant</code> traffic, grouped by page, with visitors and conversions per variant.</p><div class="ask">which A/B tests are running right now?</div></div>
-        <div class="card tool-card reveal d1"><span class="glow"></span><code class="name">get_test_results</code><p>Full table for one tested page — every variant plus untagged baseline — with a z-test verdict and how many visitors are still missing.</p><div class="ask">how is the pricing page test doing?</div></div>
-        <div class="card tool-card reveal d2"><span class="glow"></span><code class="name">check_significance</code><p>The statistical verdict on any numbers — even pasted straight from the Framer panel. Uplift, confidence, required sample size.</p><div class="ask">is 48/1200 vs 71/1180 significant?</div></div>
-        <div class="card tool-card reveal d3"><span class="glow"></span><code class="name">get_top_pages</code><p>Top landing pages with visitors, page views and conversion rate — the health check around every experiment.</p><div class="ask">how are my landing pages performing?</div></div>
-      </div>
-    </div>
-  </section>
-
-  <section id="try">
-    <div class="wrap">
-      <p class="kicker reveal">Try the math — live</p>
-      <h2 class="reveal">The same z-test the server runs,<br />embedded right here.</h2>
-      <p class="lead reveal d1">Drag your real numbers in. This is the exact <code>check_significance</code> logic — two-proportion z-test, two-tailed, 95% threshold.</p>
-      <div class="calc reveal">
-        <div>
-          <h3>Your test</h3>
-          <p class="hint">Control vs. challenger — visitors and conversions.</p>
-          <div class="vs"><span class="side">CONTROL (A)</span><span class="side b">VARIANT (B)</span></div>
-          <div class="vs">
-            <div>
-              <div class="field"><label>Visitors <output id="oAv">1200</output></label><input type="range" id="rAv" min="50" max="20000" step="50" value="1200" /></div>
-              <div class="field"><label>Conversions <output id="oAc">48</output></label><input type="range" id="rAc" min="0" max="600" step="1" value="48" /></div>
-            </div>
-            <div>
-              <div class="field"><label>Visitors <output id="oBv">1180</output></label><input type="range" id="rBv" min="50" max="20000" step="50" value="1180" /></div>
-              <div class="field"><label>Conversions <output id="oBc">71</output></label><input type="range" id="rBc" min="0" max="600" step="1" value="71" /></div>
-            </div>
+<section id="math">
+  <div class="wrap">
+    <div class="shead rv"><span class="snum">// 04</span><h2>The same z-test, <i>running right here</i></h2><p>Drag your real numbers in. Identical math to <code>check_significance</code>.</p></div>
+    <div class="calc rv">
+      <div>
+        <div class="rows">
+          <div>
+            <div class="hd">CONTROL · A</div>
+            <div class="f"><label>VISITORS <output id="oAv">1200</output></label><input type="range" id="rAv" min="50" max="20000" step="50" value="1200" /></div>
+            <div class="f"><label>CONVERSIONS <output id="oAc">48</output></label><input type="range" id="rAc" min="0" max="600" step="1" value="48" /></div>
+          </div>
+          <div>
+            <div class="hd b">VARIANT · B</div>
+            <div class="f"><label>VISITORS <output id="oBv">1180</output></label><input type="range" id="rBv" min="50" max="20000" step="50" value="1180" /></div>
+            <div class="f"><label>CONVERSIONS <output id="oBc">71</output></label><input type="range" id="rBc" min="0" max="600" step="1" value="71" /></div>
           </div>
         </div>
-        <div class="verdict" id="verdict">
-          <span class="chip running" id="vChip">TEST RUNNING</span>
-          <div class="conf"><span id="vConf">0</span><small>% confidence</small></div>
-          <div class="bar"><i id="vBar"></i><em></em></div>
-          <p class="msg" id="vMsg"></p>
-        </div>
-        <p class="calc-note">Green tick = 95%. The MCP tool adds the sample-size estimate (<code>requiredSamplePerVariant</code>) so your agent can tell you how many visitors are left before a clean call.</p>
+      </div>
+      <div class="verd-box" id="vBox">
+        <div class="st" id="vSt">TEST RUNNING</div>
+        <div class="cn"><span id="vConf">0</span><small>% confidence</small></div>
+        <div class="bar"><i id="vBar"></i><em></em></div>
+        <div class="msg" id="vMsg"></div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <section id="start">
-    <div class="wrap">
-      <p class="kicker reveal">Quickstart</p>
-      <h2 class="reveal">Running in three steps</h2>
-      <div class="steps">
-        <div class="step reveal"><span class="n"></span><div><h3>Connect GA4 to your Framer site</h3><p>Site Settings → Integrations → Google Analytics. Mark your lead / purchase event as a <b>key event</b> in GA4 so conversions mean what you think they mean.</p></div></div>
-        <div class="step reveal d1"><span class="n"></span><div><h3>Create GA4 API credentials (2 min)</h3><p>Google Cloud → enable the <b>Analytics Data API</b> → create a service account → add its email as <b>Viewer</b> on the GA4 property → download the JSON key.</p></div></div>
-        <div class="step reveal d2"><span class="n"></span><div><h3>Add the server to your MCP client</h3><p>Claude Code, Claude Desktop, Cursor, Windsurf — anything that speaks MCP:</p>
-          <div class="codebox"><button onclick="copyCfg(this)">copy</button><pre id="cfg">{
+<section id="install">
+  <div class="wrap">
+    <div class="shead rv"><span class="snum">// 05</span><h2>Running in <i>three steps</i></h2><p>Claude Code, Claude Desktop, Cursor, Windsurf — anything that speaks MCP.</p></div>
+    <div class="inst">
+      <div class="steps rv">
+        <div><span class="i">01</span><div><h3>Connect GA4 to your Framer site</h3><p>Site Settings → Integrations. Mark your lead event as a key event.</p></div></div>
+        <div><span class="i">02</span><div><h3>Create GA4 credentials</h3><p>Enable the Analytics Data API, create a service account, add it as Viewer on the property.</p></div></div>
+        <div><span class="i">03</span><div><h3>Drop it in your MCP config</h3><p>One block. Then just ask.</p></div></div>
+      </div>
+      <div class="cb rv"><button onclick="navigator.clipboard.writeText(document.getElementById('cfg').textContent);this.textContent='copied ✓';setTimeout(()=>this.textContent='copy',1500)">copy</button><pre id="cfg">{
   <span class="k">"mcpServers"</span>: {
     <span class="k">"framer-ab"</span>: {
       <span class="k">"command"</span>: <span class="s">"npx"</span>,
       <span class="k">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"framer-ab-mcp"</span>],
       <span class="k">"env"</span>: {
         <span class="k">"GA4_PROPERTY_ID"</span>: <span class="s">"123456789"</span>,
-        <span class="k">"GOOGLE_APPLICATION_CREDENTIALS"</span>: <span class="s">"/path/to/key.json"</span>
+        <span class="k">"GOOGLE_APPLICATION_CREDENTIALS"</span>: <span class="s">"/path/key.json"</span>
       }
     }
   }
 }</pre></div>
-        </div></div>
-      </div>
-    </div>
-  </section>
-
-  <section id="faq">
-    <div class="wrap">
-      <p class="kicker reveal">Honest FAQ</p>
-      <h2 class="reveal">What it is — and isn't</h2>
-      <div class="faq">
-        <details class="reveal"><summary>Is this scraping Framer's dashboard?</summary><p>No. It only calls the official Google Analytics Data API, on data your own site sends to your own GA4 property. Nothing touches Framer's servers — so nothing breaks when Framer ships a redesign.</p></details>
-        <details class="reveal"><summary>Does it cover Framer's native funnels and CTA click tracking?</summary><p>No. Those metrics exist only inside Framer's panel, which has no API — and this project deliberately stays on the official-API side of that line. If Framer ever ships an analytics API, this server is the natural place to plug it in.</p></details>
-        <details class="reveal"><summary>What about visitors from before the test started?</summary><p>They land without a <code>framer_variant</code> stamp and are reported separately as <code>(baseline)</code> — never contaminating variant numbers. Baseline is the default control; override with <code>controlVariantId</code>.</p></details>
-        <details class="reveal"><summary>Which AI clients work?</summary><p>Anything that speaks MCP over stdio: Claude Code, Claude Desktop, Cursor, Windsurf, and the growing list of MCP-compatible agents.</p></details>
-      </div>
-    </div>
-  </section>
-
-  <div class="final">
-    <div class="wrap">
-      <h2 class="reveal">Stop copy-pasting<br />test results.</h2>
-      <p class="lead reveal d1" style="margin-top:12px">Open source, MIT, built for the Framer community.</p>
-      <div class="cta-row reveal d2" style="justify-content:center; margin-top:30px">
-        <a class="btn primary" href="https://github.com/VictorAlexandr/framer-ab-mcp">Star it on GitHub →</a>
-      </div>
     </div>
   </div>
+</section>
 
-  <footer class="site">
-    <div class="wrap">
-      <span>MIT © Victor Alexandre</span>
-      <span><a href="https://github.com/VictorAlexandr/framer-ab-mcp">GitHub</a> · built on the <a href="https://modelcontextprotocol.io">Model Context Protocol</a></span>
+<section>
+  <div class="wrap">
+    <div class="shead rv"><span class="snum">// 06</span><h2>What it is — <i>and isn't</i></h2></div>
+    <div class="faq rv">
+      <details><summary>Is this scraping Framer's dashboard?<span></span></summary><p>No. It only calls the official Google Analytics Data API, on data your own site sends to your own GA4 property. Nothing touches Framer's servers — so nothing breaks when Framer ships a redesign.</p></details>
+      <details><summary>Does it cover native funnels and CTA click tracking?<span></span></summary><p>No. Those live only inside Framer's panel, which has no API — and this project deliberately stays on the official-API side of that line. If Framer ever ships an analytics API, this server is the natural place to plug it in.</p></details>
+      <details><summary>What about visitors from before the test started?<span></span></summary><p>They land without a <code>framer_variant</code> stamp and are reported separately as <code>(baseline)</code>, never contaminating variant numbers. Baseline is the default control; override with <code>controlVariantId</code>.</p></details>
     </div>
-  </footer>
+  </div>
+</section>
+
+<div class="final">
+  <div class="wrap">
+    <h2>Stop copy-pasting<br /><i>test results.</i></h2>
+    <p>OPEN SOURCE · MIT · BUILT FOR THE FRAMER COMMUNITY</p>
+    <a class="btn solid" href="https://github.com/VictorAlexandr/framer-ab-mcp"><svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>github.com/VictorAlexandr/framer-ab-mcp</a>
+  </div>
+</div>
+
+<footer class="st">
+  <div class="wrap"><span>MIT © VICTOR ALEXANDRE</span><span>BUILT ON THE <a href="https://modelcontextprotocol.io">MODEL CONTEXT PROTOCOL</a></span></div>
+</footer>
 </main>
 
 <script>
-/* ── particle network ─────────────────────────────────────────── */
-const cv = document.getElementById("net"), cx = cv.getContext("2d");
-let W, H, pts = [];
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-function sizeNet() {
-  W = cv.width = innerWidth * devicePixelRatio; H = cv.height = innerHeight * devicePixelRatio;
-  cv.style.width = innerWidth + "px"; cv.style.height = innerHeight + "px";
-  const n = Math.min(90, Math.floor(innerWidth / 16));
-  pts = Array.from({ length: n }, () => ({
-    x: Math.random() * W, y: Math.random() * H,
-    vx: (Math.random() - .5) * .18 * devicePixelRatio, vy: (Math.random() - .5) * .18 * devicePixelRatio,
-  }));
-}
-sizeNet(); addEventListener("resize", sizeNet);
-function tick() {
-  cx.clearRect(0, 0, W, H);
-  const R = 130 * devicePixelRatio;
-  for (const p of pts) {
-    p.x += p.vx; p.y += p.vy;
-    if (p.x < 0 || p.x > W) p.vx *= -1;
-    if (p.y < 0 || p.y > H) p.vy *= -1;
-  }
-  for (let i = 0; i < pts.length; i++) {
-    for (let j = i + 1; j < pts.length; j++) {
-      const a = pts[i], b = pts[j], dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy);
-      if (d < R) {
-        cx.strokeStyle = `rgba(120,140,255,${(1 - d / R) * .16})`;
-        cx.lineWidth = devicePixelRatio;
-        cx.beginPath(); cx.moveTo(a.x, a.y); cx.lineTo(b.x, b.y); cx.stroke();
-      }
-    }
-    cx.fillStyle = "rgba(150,165,255,.5)";
-    cx.beginPath(); cx.arc(pts[i].x, pts[i].y, 1.3 * devicePixelRatio, 0, 7); cx.fill();
-  }
-  if (!reduced) requestAnimationFrame(tick);
-}
-tick();
+const $ = (id) => document.getElementById(id);
 
-/* ── terminal typing loop ─────────────────────────────────────── */
-const SCRIPT = [
-  { cls: "t-user", text: "how is the pricing page test doing?", type: true },
-  { cls: "t-tool", html: "⚙ <b>get_test_results</b>(basePath: \"/pricing\") · GA4 Data API", delay: 700 },
-  { cls: "t-out", html: "\n  control      4,214 visitors   164 conv   <span class='a'>3.9%</span>\n  <span class='v'>variant B</span>    4,180 visitors   201 conv   <span class='g'>4.8%</span>\n", delay: 500 },
-  { cls: "t-out", html: "Variant B is converting <span class='g'>+23% above control</span> at <span class='g'>97% confidence</span> — past the 95% threshold. Safe to declare a winner and ship B. 🏁", delay: 500 },
-  { cls: "t-user", text: "and which other tests are running?", type: true, delay: 1600 },
-  { cls: "t-tool", html: "⚙ <b>list_ab_tests</b>(days: 30) · auto-detection", delay: 700 },
-  { cls: "t-out", html: "Found <span class='g'>2 live tests</span>: <span class='v'>/pricing</span> (2 variants) and <span class='v'>/home</span> (3 variants, A/B/C — started 4 days ago, still collecting).", delay: 500 },
-];
-const termBody = document.getElementById("termBody");
-async function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
-async function runTerm() {
-  if (reduced) {
-    termBody.innerHTML = SCRIPT.map(s => `<div class="${s.cls}">${s.html ?? s.text}</div>`).join("");
-    return;
-  }
-  for (;;) {
-    termBody.innerHTML = "";
-    for (const line of SCRIPT) {
-      await wait(line.delay ?? 300);
-      const el = document.createElement("div");
-      el.className = line.cls;
-      termBody.appendChild(el);
-      if (line.type) {
-        const caret = document.createElement("span"); caret.className = "caret";
-        el.appendChild(caret);
-        for (const ch of line.text) {
-          caret.insertAdjacentText("beforebegin", ch);
-          await wait(28 + Math.random() * 40);
-        }
-        await wait(350); caret.remove();
-      } else {
-        el.innerHTML = line.html;
+/* ══ live traffic-split simulation ═══════════════════════════════
+   Visitors flow in, get stamped, split into two lanes, some convert.
+   Counters and the confidence bar run the REAL z-test as it fills. */
+const cv = $("sim"), cx = cv.getContext("2d");
+const P_A = 0.039, P_B = 0.048, BATCH = 26;
+let dots = [], A = { v: 0, c: 0 }, B = { v: 0, c: 0 }, flashes = [], done = false, doneAt = 0, spawnAcc = 0;
+let W = 0, H = 0;
+
+function fit() {
+  const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1;
+  cv.width = r.width * d; cv.height = r.height * d;
+  cx.setTransform(d, 0, 0, d, 0, 0);
+  W = r.width; H = r.height;
+}
+fit(); addEventListener("resize", fit);
+
+function normCdf(z) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp((-z * z) / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return z > 0 ? 1 - p : p;
+}
+function confidence(a, b) {
+  if (!a.v || !b.v) return 0;
+  const p1 = a.c / a.v, p2 = b.c / b.v, pool = (a.c + b.c) / (a.v + b.v);
+  const se = Math.sqrt(pool * (1 - pool) * (1 / a.v + 1 / b.v));
+  return se === 0 ? 0 : (2 * normCdf(Math.abs((p2 - p1) / se)) - 1) * 100;
+}
+function drawBinom(n, p) { let k = 0; for (let i = 0; i < n; i++) if (Math.random() < p) k++; return k; }
+
+function spawn() {
+  const side = Math.random() < 0.5 ? 0 : 1;
+  dots.push({ x: W / 2, y: -6, side, conv: drawBinom(BATCH, side ? P_B : P_A), landed: false });
+}
+function reset() { dots = []; flashes = []; A = { v: 0, c: 0 }; B = { v: 0, c: 0 }; done = false; }
+
+function paint() {
+  cx.clearRect(0, 0, W, H);
+  const SPLIT = H * 0.34, FLOOR = H - 26;
+  const laneA = W * 0.28, laneB = W * 0.72;
+
+  // lanes + labels
+  cx.strokeStyle = "rgba(255,255,255,.10)"; cx.lineWidth = 1;
+  cx.beginPath(); cx.moveTo(0, SPLIT); cx.lineTo(W, SPLIT); cx.stroke();
+  cx.setLineDash([3, 5]);
+  [laneA, laneB].forEach((x) => { cx.beginPath(); cx.moveTo(x, SPLIT); cx.lineTo(x, FLOOR); cx.stroke(); });
+  cx.setLineDash([]);
+  cx.font = "500 9px 'IBM Plex Mono', monospace";
+  cx.fillStyle = "rgba(255,255,255,.35)"; cx.textAlign = "center";
+  cx.fillText("?framer_variant", W / 2, SPLIT - 9);
+  cx.fillStyle = "rgba(255,255,255,.45)"; cx.fillText("A", laneA, FLOOR + 14);
+  cx.fillStyle = "rgba(255,157,0,.75)"; cx.fillText("B", laneB, FLOOR + 14);
+
+  // collector bars
+  const maxV = Math.max(A.v, B.v, 1);
+  [[laneA, A, "rgba(255,255,255,.55)"], [laneB, B, "rgba(255,157,0,.85)"]].forEach(([x, s, col]) => {
+    const h = Math.min(52, (s.v / Math.max(maxV, 4000)) * 52);
+    cx.fillStyle = col; cx.fillRect(x - 26, FLOOR - h, 52, h);
+  });
+
+  for (const d of dots) {
+    const target = d.side ? laneB : laneA;
+    if (d.y < SPLIT) d.y += 2.4;
+    else {
+      d.x += (target - d.x) * 0.12;
+      d.y += 2.9;
+      if (d.y >= FLOOR && !d.landed) {
+        d.landed = true;
+        const s = d.side ? B : A;
+        s.v += BATCH; s.c += d.conv;
+        if (d.conv > 0) flashes.push({ x: target, y: FLOOR, r: 0, a: 1 });
       }
     }
-    await wait(7000);
+    if (!d.landed) {
+      const stamped = d.y >= SPLIT;
+      cx.fillStyle = stamped ? (d.side ? "rgba(255,157,0,.95)" : "rgba(255,255,255,.8)") : "rgba(255,255,255,.45)";
+      cx.beginPath(); cx.arc(d.x, d.y, stamped ? 2.4 : 1.8, 0, 7); cx.fill();
+      if (stamped && d.conv > 0) {
+        cx.strokeStyle = "rgba(46,230,214,.55)"; cx.lineWidth = 1;
+        cx.beginPath(); cx.arc(d.x, d.y, 4.5, 0, 7); cx.stroke();
+      }
+    }
+  }
+  dots = dots.filter((d) => !d.landed);
+
+  for (const f of flashes) { f.r += 1.6; f.a -= 0.035; }
+  flashes = flashes.filter((f) => f.a > 0);
+  for (const f of flashes) {
+    cx.strokeStyle = `rgba(46,230,214,${f.a})`; cx.lineWidth = 1.4;
+    cx.beginPath(); cx.arc(f.x, f.y, f.r, 0, 7); cx.stroke();
+  }
+}
+
+function hud() {
+  const rA = A.v ? (A.c / A.v) * 100 : 0, rB = B.v ? (B.c / B.v) * 100 : 0;
+  $("rA").textContent = A.v ? rA.toFixed(1) + "%" : "—";
+  $("rB").textContent = B.v ? rB.toFixed(1) + "%" : "—";
+  $("sA").textContent = A.v.toLocaleString() + " visitors · " + A.c + " conv";
+  $("sB").textContent = B.v.toLocaleString() + " visitors · " + B.c + " conv";
+  const c = confidence(A, B);
+  $("cBar").style.width = Math.min(100, c) + "%";
+  const v = $("cVerd");
+  if (c >= 95 && rB > rA) {
+    v.textContent = "SIGNIFICANT · B WINS +" + (((rB - rA) / rA) * 100).toFixed(0) + "%";
+    v.classList.add("ok");
+    if (!done) { done = true; doneAt = performance.now(); }
+  } else {
+    v.textContent = c.toFixed(1) + "% confidence";
+    v.classList.remove("ok");
+  }
+}
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(64, now - last); last = now;
+  if (!done) {
+    spawnAcc += dt;
+    while (spawnAcc > 78) { spawn(); spawnAcc -= 78; }
+  } else if (now - doneAt > 4200 && dots.length === 0) reset();
+  paint(); hud();
+  requestAnimationFrame(loop);
+}
+if (reduced) { A = { v: 4214, c: 164 }; B = { v: 4180, c: 201 }; paint(); hud(); }
+else requestAnimationFrame(loop);
+
+/* ══ terminal ═══════════════════════════════════════════════════ */
+const SCRIPT = [
+  { cls: "t-user", text: "how is the pricing test doing?", type: true },
+  { cls: "t-tool", html: "→ <b>get_test_results</b>(basePath: \"/pricing\")", delay: 620 },
+  { cls: "t-out", html: "\n  control     4,214 visitors  164 conv  <span class='a'>3.9%</span>\n  variant B   4,180 visitors  201 conv  <span class='g'>4.8%</span>\n", delay: 460 },
+  { cls: "t-out", html: "B converts <span class='g'>+23% above control</span> at <span class='g'>97% confidence</span> — past the 95% threshold. Safe to ship B.", delay: 420 },
+  { cls: "t-user", text: "any other tests running?", type: true, delay: 1500 },
+  { cls: "t-tool", html: "→ <b>list_ab_tests</b>(days: 30)", delay: 620 },
+  { cls: "t-out", html: "<span class='g'>2 live tests</span>: /pricing (2 variants) · /home (3 variants, A/B/C — 4 days in, still collecting).", delay: 420 },
+];
+const tb = $("termBody");
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function runTerm() {
+  if (reduced) { tb.innerHTML = SCRIPT.map((s) => `<div class="${s.cls}">${s.html ?? s.text}</div>`).join(""); return; }
+  for (;;) {
+    tb.innerHTML = "";
+    for (const line of SCRIPT) {
+      await wait(line.delay ?? 260);
+      const el = document.createElement("div");
+      el.className = line.cls; tb.appendChild(el);
+      if (line.type) {
+        const car = document.createElement("span"); car.className = "caret"; el.appendChild(car);
+        for (const ch of line.text) { car.insertAdjacentText("beforebegin", ch); await wait(26 + Math.random() * 36); }
+        await wait(300); car.remove();
+      } else el.innerHTML = line.html;
+    }
+    await wait(6500);
   }
 }
 runTerm();
 
-/* ── scroll reveal ────────────────────────────────────────────── */
-const io = new IntersectionObserver(es => es.forEach(e => {
-  if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-}), { threshold: .12 });
-document.querySelectorAll(".reveal").forEach(el => io.observe(el));
-
-/* ── mouse glow on cards ──────────────────────────────────────── */
-document.querySelectorAll(".card").forEach(card => {
-  card.addEventListener("pointermove", e => {
-    const r = card.getBoundingClientRect();
-    card.style.setProperty("--mx", (e.clientX - r.left) + "px");
-    card.style.setProperty("--my", (e.clientY - r.top) + "px");
-  });
-});
-
-/* ── live z-test calculator (same math as src/stats.ts) ───────── */
-function normCdf(z) {
-  const t = 1 / (1 + .2316419 * Math.abs(z));
-  const d = .3989423 * Math.exp(-z * z / 2);
-  const p = d * t * (.3193815 + t * (-.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-  return z > 0 ? 1 - p : p;
-}
-const $ = id => document.getElementById(id);
+/* ══ calculator ═════════════════════════════════════════════════ */
 function calc() {
   const av = +$("rAv").value, ac = Math.min(+$("rAc").value, av);
   const bv = +$("rBv").value, bc = Math.min(+$("rBc").value, bv);
-  $("oAv").textContent = av.toLocaleString(); $("oAc").textContent = ac.toLocaleString();
-  $("oBv").textContent = bv.toLocaleString(); $("oBc").textContent = bc.toLocaleString();
+  $("oAv").textContent = av.toLocaleString(); $("oAc").textContent = ac;
+  $("oBv").textContent = bv.toLocaleString(); $("oBc").textContent = bc;
   const p1 = ac / av, p2 = bc / bv;
-  const pooled = (ac + bc) / (av + bv);
-  const se = Math.sqrt(pooled * (1 - pooled) * (1 / av + 1 / bv));
-  const conf = se === 0 ? 0 : (2 * normCdf(Math.abs((p2 - p1) / se)) - 1) * 100;
-  const sig = conf >= 95;
-  const uplift = p1 > 0 ? ((p2 - p1) / p1) * 100 : 0;
+  const conf = confidence({ v: av, c: ac }, { v: bv, c: bc });
+  const sig = conf >= 95, up = p1 > 0 ? ((p2 - p1) / p1) * 100 : 0;
   $("vConf").textContent = conf.toFixed(1);
   $("vBar").style.width = Math.min(100, conf) + "%";
-  $("verdict").classList.toggle("win", sig);
-  const chip = $("vChip");
-  chip.textContent = sig ? "SIGNIFICANT ✓" : "TEST RUNNING";
-  chip.className = "chip " + (sig ? "sig" : "running");
+  $("vBox").classList.toggle("ok", sig);
+  $("vSt").textContent = sig ? "SIGNIFICANT ✓" : "TEST RUNNING";
   $("vMsg").innerHTML = sig
-    ? `<b>${p2 > p1 ? "Variant B wins" : "Control wins"}</b> — ${Math.abs(uplift).toFixed(1)}% ${uplift >= 0 ? "uplift" : "drop"} (${(p1 * 100).toFixed(1)}% → ${(p2 * 100).toFixed(1)}%). Ship it.`
-    : `B at <b>${(p2 * 100).toFixed(1)}%</b> vs control <b>${(p1 * 100).toFixed(1)}%</b> (${uplift >= 0 ? "+" : ""}${uplift.toFixed(1)}%). Needs 95% confidence — keep collecting.`;
+    ? `<b>${p2 > p1 ? "Variant B wins" : "Control wins"}</b> — ${Math.abs(up).toFixed(1)}% ${up >= 0 ? "uplift" : "drop"} (${(p1 * 100).toFixed(1)}% → ${(p2 * 100).toFixed(1)}%). Ship it.`
+    : `B at <b>${(p2 * 100).toFixed(1)}%</b> vs control <b>${(p1 * 100).toFixed(1)}%</b> (${up >= 0 ? "+" : ""}${up.toFixed(1)}%). Below 95% — keep collecting.`;
 }
-["rAv", "rAc", "rBv", "rBc"].forEach(id => $(id).addEventListener("input", calc));
+["rAv", "rAc", "rBv", "rBc"].forEach((id) => $(id).addEventListener("input", calc));
 calc();
 
-/* ── copy config ──────────────────────────────────────────────── */
-function copyCfg(btn) {
-  navigator.clipboard.writeText(document.getElementById("cfg").textContent);
-  btn.textContent = "copied ✓"; setTimeout(() => (btn.textContent = "copy"), 1600);
-}
+/* ══ reveal ═════════════════════════════════════════════════════ */
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .1 });
+document.querySelectorAll(".rv").forEach((el) => io.observe(el));
 </script>
 </body>
 </html>
