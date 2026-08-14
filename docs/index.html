@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>framer-ab-mcp — Framer A/B test analytics for AI agents</title>
+<meta name="description" content="The first MCP server for Framer A/B test analytics. Visitors, conversions and statistical significance per variant — no scraping, no private APIs." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #08080d; --surface: #10101a; --surface2: #171725; --border: #22223a;
+    --text: #eef0fa; --muted: #8b90ab; --blue: #4d8dff; --violet: #a06bff;
+    --green: #3ee07f; --amber: #f5b942; --mono: "JetBrains Mono", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; line-height: 1.6; }
+  h1, h2, h3 { font-family: "Space Grotesk", Inter, sans-serif; letter-spacing: -0.02em; }
+  a { color: var(--blue); text-decoration: none; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  code, pre { font-family: var(--mono); }
+
+  nav { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; }
+  .logo { font-family: var(--mono); font-weight: 600; font-size: 15px; color: var(--text); }
+  .logo span { color: var(--violet); }
+  .gh-btn { border: 1px solid var(--border); border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 500; color: var(--text); transition: border-color .2s; }
+  .gh-btn:hover { border-color: var(--blue); }
+
+  .hero { padding: 84px 0 60px; text-align: center; position: relative; }
+  .hero::before { content: ""; position: absolute; inset: -120px 0 auto; height: 420px; background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(77,141,255,.14), transparent 70%), radial-gradient(ellipse 40% 40% at 65% 10%, rgba(160,107,255,.10), transparent 70%); pointer-events: none; }
+  .badge-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 26px; position: relative; }
+  .badge { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: rgba(255,255,255,.02); }
+  .badge.hot { color: var(--violet); border-color: rgba(160,107,255,.4); }
+  .hero h1 { font-size: clamp(34px, 6vw, 58px); line-height: 1.08; font-weight: 700; position: relative; }
+  .hero h1 em { font-style: normal; background: linear-gradient(92deg, var(--blue), var(--violet)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.sub { max-width: 640px; margin: 22px auto 0; color: var(--muted); font-size: 17.5px; position: relative; }
+  .install { display: inline-flex; align-items: center; gap: 14px; margin-top: 34px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; font-family: var(--mono); font-size: 14px; position: relative; }
+  .install .dollar { color: var(--green); }
+  .install button { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); border-radius: 7px; font-size: 11px; padding: 5px 10px; cursor: pointer; font-family: Inter; }
+  .install button:hover { color: var(--text); }
+
+  section { padding: 64px 0; }
+  .kicker { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--violet); margin-bottom: 10px; }
+  h2 { font-size: clamp(24px, 3.6vw, 34px); margin-bottom: 14px; }
+  .lead { color: var(--muted); max-width: 640px; font-size: 16px; }
+
+  .gap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 30px; }
+  .gap-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+  .gap-card .x { font-family: var(--mono); color: #ff5d5d; font-size: 13px; font-weight: 600; }
+  .gap-card h3 { font-size: 16px; margin: 8px 0 6px; }
+  .gap-card p { color: var(--muted); font-size: 13.5px; }
+  blockquote { margin-top: 30px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--amber); border-radius: 12px; padding: 20px 24px; font-size: 15.5px; }
+  blockquote footer { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+
+  .flow { margin-top: 34px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; overflow-x: auto; }
+  .flow pre { font-size: 13.5px; line-height: 1.9; color: var(--muted); min-width: 520px; }
+  .flow .hl { color: var(--text); font-weight: 600; }
+  .flow .b { color: var(--blue); } .flow .v { color: var(--violet); } .flow .g { color: var(--green); }
+
+  .tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 32px; }
+  .tool { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; transition: border-color .2s, transform .2s; }
+  .tool:hover { border-color: rgba(77,141,255,.5); transform: translateY(-2px); }
+  .tool code.name { font-size: 13.5px; font-weight: 600; color: var(--blue); }
+  .tool p { color: var(--muted); font-size: 13.5px; margin-top: 8px; }
+  .tool .ask { margin-top: 14px; font-size: 12.5px; color: var(--text); background: var(--surface2); border-radius: 8px; padding: 9px 12px; }
+  .tool .ask::before { content: "you → "; font-family: var(--mono); color: var(--violet); font-size: 11px; }
+
+  .chat { margin-top: 34px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 26px; max-width: 760px; }
+  .msg { max-width: 88%; border-radius: 12px; padding: 12px 16px; font-size: 14px; margin-top: 14px; }
+  .msg.user { background: linear-gradient(92deg, rgba(77,141,255,.18), rgba(160,107,255,.18)); border: 1px solid rgba(77,141,255,.3); margin-left: auto; }
+  .msg.ai { background: var(--surface2); border: 1px solid var(--border); }
+  .msg.ai .sig { color: var(--green); font-weight: 600; }
+  .msg .tag { font-family: var(--mono); font-size: 10.5px; color: var(--muted); display: block; margin-bottom: 5px; }
+
+  .steps { counter-reset: step; margin-top: 30px; display: grid; gap: 14px; }
+  .step { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px 22px 22px 64px; position: relative; }
+  .step::before { counter-increment: step; content: counter(step); position: absolute; left: 20px; top: 22px; width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--blue), var(--violet)); color: #fff; font-family: var(--mono); font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .step h3 { font-size: 15.5px; margin-bottom: 6px; }
+  .step p { color: var(--muted); font-size: 13.5px; }
+  .step pre { margin-top: 12px; background: #0b0b12; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; font-size: 12.5px; line-height: 1.7; overflow-x: auto; color: var(--muted); }
+  .step pre .k { color: var(--blue); } .step pre .s { color: var(--green); }
+
+  .faq { margin-top: 30px; display: grid; gap: 10px; }
+  details { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+  summary { cursor: pointer; font-weight: 600; font-size: 14.5px; }
+  details p { color: var(--muted); font-size: 13.5px; margin-top: 10px; }
+
+  .cta { text-align: center; padding: 80px 0 90px; }
+  .cta a.big { display: inline-block; margin-top: 24px; background: linear-gradient(92deg, var(--blue), var(--violet)); color: #fff; font-weight: 600; font-size: 15px; border-radius: 12px; padding: 14px 30px; transition: opacity .2s; }
+  .cta a.big:hover { opacity: .88; }
+  footer.site { border-top: 1px solid var(--border); padding: 26px 0; color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="logo">framer-ab-<span>mcp</span></div>
+    <a class="gh-btn" href="https://github.com/VictorAlexandr/framer-ab-mcp">GitHub ↗</a>
+  </nav>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="badge-row">
+      <span class="badge hot">FIRST MCP FOR FRAMER ANALYTICS</span>
+      <span class="badge">NO SCRAPING</span>
+      <span class="badge">MIT</span>
+    </div>
+    <h1>Your Framer A/B tests,<br /><em>one question away.</em></h1>
+    <p class="sub">An MCP server that lets Claude, Cursor or any AI agent read your Framer A/B test results — visitors, conversions, uplift and statistical significance per variant. Powered by data you already own.</p>
+    <div class="install"><span><span class="dollar">$</span> npx -y framer-ab-mcp</span><button onclick="navigator.clipboard.writeText('npx -y framer-ab-mcp')">copy</button></div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">The gap</p>
+    <h2>Framer analytics is a locked room</h2>
+    <p class="lead">Framer's built-in analytics and A/B testing are great — inside the panel. Outside of it, there is nothing to build on.</p>
+    <div class="gap-grid">
+      <div class="gap-card"><span class="x">✕ NO API</span><h3>No analytics endpoint</h3><p>Framer's Server API covers CMS content only. Analytics has zero programmatic access.</p></div>
+      <div class="gap-card"><span class="x">✕ NO EXPORT</span><h3>No CSV, no webhook</h3><p>A/B results live in the dashboard and nowhere else. Copy-paste is the state of the art.</p></div>
+      <div class="gap-card"><span class="x">✕ NO INTEGRATIONS</span><h3>No ecosystem</h3><p>Every Framer MCP out there automates the design canvas. None of them can read a single metric.</p></div>
+    </div>
+    <blockquote>
+      “I wanted to know if there is any plan to be able to export the analytics to an external source or potentially get it via API.”
+      <footer>— Framer Community, asked in 2024. Still open.</footer>
+    </blockquote>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">The insight</p>
+    <h2>The data was never locked — it was in GA4 all along</h2>
+    <p class="lead">When Framer assigns a visitor to an A/B variant, it stamps <code>?framer_variant=&lt;id&gt;</code> on the URL. If your site sends data to Google Analytics 4, <strong>every variant is already tracked separately</strong> — through an official, stable Google API. No scraping. Nothing to break.</p>
+    <div class="flow">
+<pre>
+Framer A/B test ──► visitor lands on  <span class="v">/pricing?framer_variant=dXmgUoIf7</span>
+                                │
+                                ▼
+        <span class="b">GA4</span> · landingPagePlusQueryString   <span class="hl">(official Google API)</span>
+                                │
+                                ▼
+                    <span class="g">framer-ab-mcp</span>  · variant split + two-proportion z-test
+                                │
+                                ▼
+              Claude / Cursor / any MCP client: <span class="hl">“Variant B is winning at 97% confidence”</span>
+</pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Tools</p>
+    <h2>Four tools, zero configuration</h2>
+    <p class="lead">Tests are auto-detected from traffic — you don't register anything.</p>
+    <div class="tools">
+      <div class="tool"><code class="name">list_ab_tests</code><p>Finds every page receiving <code>framer_variant</code> traffic, grouped by page, with visitors and conversions per variant.</p><div class="ask">which A/B tests are running right now?</div></div>
+      <div class="tool"><code class="name">get_test_results</code><p>Full table for one tested page — every variant plus baseline — with a statistical verdict at 95% confidence.</p><div class="ask">how is the pricing page test doing?</div></div>
+      <div class="tool"><code class="name">check_significance</code><p>Two-proportion z-test on any numbers, even pasted from the Framer panel. Uplift, confidence, sample size still needed.</p><div class="ask">is 48/1200 vs 71/1180 significant?</div></div>
+      <div class="tool"><code class="name">get_top_pages</code><p>Top landing pages with visitors, page views and conversion rate — the health check around every test.</p><div class="ask">how are my landing pages performing?</div></div>
+    </div>
+    <div class="chat">
+      <div class="msg user">Is variant B beating control on the pricing page?</div>
+      <div class="msg ai"><span class="tag">framer-ab-mcp · get_test_results</span>Not yet — variant <code>dXmgUoIf7</code> converts at 4.8% vs 3.9% for control (<strong>+23% uplift</strong>), but confidence is at 88%. <span class="sig">~1,400 more visitors per variant</span> and you'll have a clean verdict. Keep it running.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Quickstart</p>
+    <h2>Running in three steps</h2>
+    <div class="steps">
+      <div class="step"><h3>Connect GA4 to your Framer site</h3><p>Site Settings → Integrations → Google Analytics. Most production sites already have this. Mark your lead/purchase event as a key event in GA4.</p></div>
+      <div class="step"><h3>Create GA4 API credentials (2 min)</h3><p>Google Cloud → enable the Analytics Data API → create a service account → add its email as Viewer on your GA4 property → download the JSON key.</p></div>
+      <div class="step"><h3>Add the server to your MCP client</h3>
+<pre>{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"framer-ab"</span>: {
+      <span class="k">"command"</span>: <span class="s">"npx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"framer-ab-mcp"</span>],
+      <span class="k">"env"</span>: {
+        <span class="k">"GA4_PROPERTY_ID"</span>: <span class="s">"123456789"</span>,
+        <span class="k">"GOOGLE_APPLICATION_CREDENTIALS"</span>: <span class="s">"/path/to/key.json"</span>
+      }
+    }
+  }
+}</pre></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Honest FAQ</p>
+    <h2>What it is — and isn't</h2>
+    <div class="faq">
+      <details><summary>Is this scraping Framer's dashboard?</summary><p>No. It only calls the official Google Analytics Data API on data your own site sends to your own GA4 property. Nothing touches Framer's servers, so nothing breaks when Framer ships a redesign.</p></details>
+      <details><summary>Does it cover Framer's native funnels and CTA click tracking?</summary><p>No — those metrics exist only inside Framer's panel, which has no API. This project deliberately stays on the official-API side of that line. If Framer ever ships an analytics API, this server is the natural place to plug it in.</p></details>
+      <details><summary>Which AI clients work?</summary><p>Anything that speaks MCP over stdio: Claude Code, Claude Desktop, Cursor, Windsurf, and the growing list of MCP-compatible agents.</p></details>
+      <details><summary>What about visitors from before the test started?</summary><p>They land without a <code>framer_variant</code> stamp and are reported as <code>(baseline)</code> — kept separate so they never contaminate your variant numbers, and used as control by default.</p></details>
+    </div>
+  </div>
+</section>
+
+<div class="cta">
+  <div class="wrap">
+    <h2>Stop copy-pasting test results.</h2>
+    <p class="lead" style="margin: 10px auto 0;">Open source, MIT, built for the Framer community.</p>
+    <a class="big" href="https://github.com/VictorAlexandr/framer-ab-mcp">Get started on GitHub →</a>
+  </div>
+</div>
+
+<div class="wrap">
+  <footer class="site">
+    <span>MIT © Victor Alexandre</span>
+    <span><a href="https://github.com/VictorAlexandr/framer-ab-mcp">GitHub</a> · built with the Model Context Protocol</span>
+  </footer>
+</div>
+</body>
+</html>

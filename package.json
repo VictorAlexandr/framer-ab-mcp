@@ -1,0 +1,42 @@
+{
+  "name": "framer-ab-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Framer A/B test analytics — pulls variant results (visitors, conversions, significance) from GA4 via the framer_variant URL param. No scraping, no private APIs.",
+  "keywords": [
+    "mcp",
+    "framer",
+    "ab-testing",
+    "analytics",
+    "ga4",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "author": "Victor Alexandre",
+  "type": "module",
+  "bin": {
+    "framer-ab-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "google-auth-library": "^9.15.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
