@@ -4,7 +4,9 @@
 
 Framer has **no analytics API** ([the community has been asking since 2024](https://www.framer.community/c/support/analytics-export)). This server closes the gap **without scraping and without private APIs**, using a detail most people miss:
 
-> When Framer assigns a visitor to an A/B variant, it stamps `?framer_variant=<id>` on the URL. Which means **GA4 already has your test data, split by variant** — it just needed a tool that understands it.
+> Framer decides the variant at the edge and reports it back in a **`Server-Timing` response header** — readable by your own page through the standard Navigation Timing API. A 15-line snippet writes it into the URL, and from there **GA4 tracks every variant separately**, through an official Google API.
+
+See [Native A/B tests](#native-ab-tests-same-url) for the one-time setup.
 
 ## Tools
 
@@ -14,6 +16,23 @@ Framer has **no analytics API** ([the community has been asking since 2024](http
 | `get_test_results` | "How is the test on /pricing doing?" — visitors, conversions, rate per variant + z-test verdict |
 | `check_significance` | "Is this result significant?" — two-proportion z-test on any numbers (95% confidence, uplift, sample size needed) |
 | `get_top_pages` | "How are my landing pages doing?" — top pages with visitors, views and conversion rate |
+
+## Native A/B tests (same URL)
+
+Framer's built-in A/B test serves every variant on the **same URL** — so out of the box GA4 sees one page, not three. Framer does expose the assignment, though, in the response headers:
+
+```
+server-timing: route;desc="id=HzCk8JwdA&locale=default",
+               abtests;desc="fTtDReMMT=HzCk8JwdA&ZC0Z4uM6O=U8HpLpLm1"
+```
+
+`route → id=` is the variant served on this page; `abtests` lists `testId=variantId` for every running test. Paste [`snippet/framer-variant-to-url.js`](snippet/framer-variant-to-url.js) into **Site Settings → Custom Code → Start of `<head>`** and it stamps `?framer_variant=<id>` on the URL *before* GA4 fires its page view. No GA4 configuration, no custom dimensions.
+
+- Pages that aren't under test are left untouched.
+- Framer already preserves this parameter across internal links (its own `data-preserve-internal-params` script handles `framer_variant` by name), so you're using a parameter the platform understands.
+- Trade-off: the parameter becomes visible in the address bar, and sharing that link forces the recipient into that variant — Framer's own behaviour for variant links.
+
+Verified in a headless browser: the assignment is readable during `<head>` execution, before the analytics page view.
 
 ## Requirements
 

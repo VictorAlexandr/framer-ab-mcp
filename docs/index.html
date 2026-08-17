@@ -268,15 +268,15 @@
 
 <section id="how">
   <div class="wrap">
-    <div class="shead rv"><span class="snum">// 02</span><h2>The data was never locked.<br /><i>It was in GA4 all along.</i></h2><p>Framer stamps the URL when it assigns a variant. GA4 keeps the stamp.</p></div>
+    <div class="shead rv"><span class="snum">// 02</span><h2>Framer never told the URL.<br /><i>It told the headers.</i></h2><p>The native split serves every variant on the same URL — but the assignment is right there in the response.</p></div>
     <div class="urlbox rv">
-      <div class="cap">WHAT A VISITOR IN VARIANT B ACTUALLY LANDS ON</div>
-      <div class="u">sparkmaxx.com/pricing<mark>?framer_variant=dXmgUoIf7</mark></div>
-      <div class="note">GA4 dimension <b>landingPagePlusQueryString</b> keeps that parameter — so every variant is already tracked separately, behind an official Google API.</div>
+      <div class="cap">EVERY RESPONSE FROM A FRAMER SITE UNDER TEST</div>
+      <div class="u">server-timing: abtests;desc=<mark>"fTtDReMMT=HzCk8JwdA"</mark></div>
+      <div class="note">Readable by your own page via the standard Navigation Timing API — <b>before analytics fires</b>. A 15-line snippet writes it into the URL, and GA4's <b>landingPagePlusQueryString</b> tracks every variant separately from then on. No custom dimensions, no GA4 config.</div>
     </div>
     <div class="how rv" style="margin-top:22px">
-      <div><div class="st">STEP 01</div><h3>Framer splits traffic</h3><p>Visitor assigned to a variant, URL gets stamped.</p></div>
-      <div><div class="st">STEP 02</div><h3>GA4 records per variant</h3><p>Visitors and key events, per day, per stamp.</p></div>
+      <div><div class="st">STEP 01</div><h3>Framer splits at the edge</h3><p>Same URL for everyone — the variant comes back in <code>Server-Timing</code>.</p></div>
+      <div><div class="st">STEP 02</div><h3>Snippet stamps the URL</h3><p>15 lines in <code>&lt;head&gt;</code>, before the page view. GA4 then splits variants on its own.</p></div>
       <div><div class="st">STEP 03</div><h3>This server does the math</h3><p>Auto-detects tests, cleans query noise (utm, fbclid), runs a two-proportion z-test.</p></div>
       <div><div class="st">STEP 04</div><h3>Your agent answers</h3><p>"B is +23% at 97% confidence — ship it."</p></div>
     </div>
@@ -360,7 +360,7 @@
     <div class="faq rv">
       <details><summary>Is this scraping Framer's dashboard?<span></span></summary><p>No. It only calls the official Google Analytics Data API, on data your own site sends to your own GA4 property. Nothing touches Framer's servers — so nothing breaks when Framer ships a redesign.</p></details>
       <details><summary>Does it cover native funnels and CTA click tracking?<span></span></summary><p>No. Those live only inside Framer's panel, which has no API — and this project deliberately stays on the official-API side of that line. If Framer ever ships an analytics API, this server is the natural place to plug it in.</p></details>
-      <details><summary>What about visitors from before the test started?<span></span></summary><p>They land without a <code>framer_variant</code> stamp and are reported separately as <code>(baseline)</code>, never contaminating variant numbers. Baseline is the default control; override with <code>controlVariantId</code>.</p></details>
+      <details><summary>Do I need the snippet?<span></span></summary><p>Only for Framer's <b>native</b> A/B test, where every variant shares one URL — there the snippet is what makes GA4 (and therefore this server) able to tell them apart. If your variants already live on distinct paths or links, the tools work with nothing to install. Pages outside a test are never touched, and visitors who arrive with no stamp are reported separately as <code>(baseline)</code>.</p></details>
     </div>
   </div>
 </section>
